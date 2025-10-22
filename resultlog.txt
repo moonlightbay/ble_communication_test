@@ -1,0 +1,94 @@
+一、主机同时向设备发送指令，设备同时向主机以500Hz(100Hz发包，一包五帧，每帧40B)，通过蓝牙notify方式。
+
+运行test_sync.py结果如下：
+16通道：
+1.适配器BARROT bluetooth5.4 adapter
+ 
+单线程：
+[bio-scs] received=4971, sent=4971, avg_delay_us=19509.29408569701
+丢包率：0% ，延迟为10毫秒量级
+
+二线程：
+[bio-eeg] received=3884, sent=4982, avg_delay_us=148509.83743563312
+[bio-emg] received=3168, sent=4994, avg_delay_us=167308.56919191914
+丢包率：29.3% ，意味着主机开始接受不过来，蓝牙适配器在多个连接间切换时无法维持稳定的数据流。
+高平均延迟 150–215 ms 说明设备帧在缓冲区排队。
+
+三线程：
+[bio-eeg] received=2584, sent=4986, avg_delay_us=174579.12291021677
+[bio-emg] received=2268, sent=4997, avg_delay_us=156514.49232804243
+[bio-scs] received=2703, sent=4989, avg_delay_us=215516.8315575294
+丢包率：将近50%
+
+2.适配器 Reltek Bluetooth 5.0 adapter
+
+单线程：
+[bio-scs] received=4978, sent=4978, avg_delay_us=17645.070650863818
+丢包率：0
+
+二线程：
+[bio-eeg] received=4667, sent=4974, avg_delay_us=136617.53361902735
+[bio-emg] received=4974, sent=4974, avg_delay_us=5769.5735022114595
+丢包率：6.17% 0% 
+
+三线程：
+[bio-eeg] received=4971, sent=4971, avg_delay_us=8546.876181854775
+[bio-emg] received=4314, sent=4990, avg_delay_us=129377.31930922583
+[bio-scs] received=4986, sent=4986, avg_delay_us=26930.22833935014
+丢包率：两个线程0丢包，一个线程会丢包，大约15%到35%
+
+3.适配器：Generic Bluetooth adapter
+
+单线程：
+[bio-eeg] received=4982, sent=4982, avg_delay_us=13417.176093938193
+丢包率：0
+
+二线程：
+[bio-eeg] received=4312, sent=4989, avg_delay_us=127572.65929962894
+[bio-emg] received=903, sent=5064, avg_delay_us=202693.1172757477
+丢包率：13.57%  82.17%
+
+三线程：
+[bio-eeg] received=238, sent=5451, avg_delay_us=577879.1264705886
+[bio-emg] received=4975, sent=4975, avg_delay_us=7757.007698492534
+[bio-scs] received=502, sent=5250, avg_delay_us=254333.06135458197
+丢包率：0%，95.63%，90.42%
+
+额外：32通道，使用Reltek适配器
+
+一对一：[bio-eeg] received=4971, sent=4971, avg_delay_us=12088.97680547167  没问题。
+
+
+
+
+4.其他现象：三线程连接到三设备时，经常会有一个设备的连接被放弃。跑一次代码，三个都通信成功的几率较低。
+
+二、设备一对一写(500Hz,16/32 通道)主机，主机一对二写(10Hz 16字节)从机，使用Reltek适配器
+16通道：
+    1.一对一对一
+    [bio-eeg] received=4978, sent=4978, lost=0
+    [stim] writes_ok/attempted=100/100, read_counter=100, last_error=None
+    0丢包。
+
+    2.一对一对二
+    [bio-eeg] received=4971, sent=4971, lost=0
+    [stim] writes_ok/attempted=100/100, read_counter=100, last_error=None
+    [exo] writes_ok/attempted=100/100, read_counter=100, last_error=None
+    0丢包，连接有点不稳定，开始时可能掉连接（已用错峰连接解决）
+
+32通道：
+    1.一对一对一
+    [bio-eeg] received=4974, sent=4974, lost=0
+    [stim] writes_ok/attempted=100/100, read_counter=100, last_error=None
+    0丢包。
+
+    2.一对一对二
+    [bio-eeg] received=4978, sent=4978, lost=0
+    [stim] writes_ok/attempted=100/100, read_counter=100, last_error=None
+    [exo] writes_ok/attempted=100/100, read_counter=100, last_error=None
+    0丢包，连接有点不稳定，开始时可能掉连接（已用错峰连接解决）
+
+
+
+
+

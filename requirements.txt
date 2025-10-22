@@ -1,0 +1,5 @@
+bleak>=0.22.0
+# Windows 上可选，用于获取本机适配器信息（若不需要本机地址可不装）
+winsdk>=1.0.0; platform_system == "Windows"
+# 或者有些环境使用 winrt 包（两者一般择一）
+winrt>=1.0.0; platform_system == "Windows"
