@@ -65,7 +65,7 @@
  * - Define STREAM_CHANNELS as 16 or 32 (default 16)
  */
 #ifndef STREAM_CHANNELS
-#define STREAM_CHANNELS                 16
+#define STREAM_CHANNELS                 32
 #endif
 #define CHANNEL_COUNT                   STREAM_CHANNELS
 #define BATCH_FRAME_COUNT               5
@@ -108,7 +108,8 @@ static uint16_t m_pending_length = 0;           /* cached length for the pending
 static uint32_t m_pending_sequence = 0;         /* sequence number associated with pending frame */
 static uint32_t m_frame_drops = 0;              /* frames discarded due to buffer overflow */
 
-#define FRAME_BUFFER_CAPACITY           (BATCH_FRAME_COUNT * 16) /* room for 80 frames */
+#define FRAME_BUFFER_MULTIPLIER         100u
+#define FRAME_BUFFER_CAPACITY           (BATCH_FRAME_COUNT * FRAME_BUFFER_MULTIPLIER) /* room for 500 frames默认 */
 
 typedef struct
 {
@@ -118,6 +119,7 @@ typedef struct
 static frame_buffer_entry_t m_frame_buffer[FRAME_BUFFER_CAPACITY];
 static uint16_t m_frame_buffer_head = 0;        /* index of the oldest pending frame */
 static uint16_t m_frame_buffer_count = 0;       /* number of frames queued for transmission */
+static uint16_t m_frame_buffer_high_watermark = 0; /* peak frames queued (telemetry) */
 
 /* Advertising payload (UARTS service UUID) */
 static ble_uuid_t m_adv_uuids[] = {
@@ -265,6 +267,10 @@ static void stream_timer_handler(void * p_context)
     m_sample_tick++;
 
     m_frame_buffer_count++;
+    if (m_frame_buffer_count > m_frame_buffer_high_watermark)
+    {
+        m_frame_buffer_high_watermark = m_frame_buffer_count;
+    }
     try_send_pending_frame();
 }
 
@@ -504,6 +510,9 @@ static void uarts_data_handler(ble_uarts_evt_t * p_evt)
             m_pending_sequence = 0;
             m_frame_buffer_head = 0;
             m_frame_buffer_count = 0;
+            printf("Buffer stats: drops=%lu high_water=%u\r\n",
+                   (unsigned long)m_frame_drops,
+                   (unsigned)m_frame_buffer_high_watermark);
             status_char_update(m_last_stream_sequence);
             break;
 
@@ -524,6 +533,7 @@ static void uarts_data_handler(ble_uarts_evt_t * p_evt)
                     m_pending_sequence = 0;
                     m_frame_buffer_head = 0;
                     m_frame_buffer_count = 0;
+                    m_frame_buffer_high_watermark = 0;
                     m_frame_drops = 0;
                     status_char_update(0);
                     ret_code_t err_code = app_timer_start(m_stream_timer_id, STREAM_INTERVAL_TICKS, NULL);
@@ -541,6 +551,9 @@ static void uarts_data_handler(ble_uarts_evt_t * p_evt)
                     m_streaming_enabled = false;
                     app_timer_stop(m_stream_timer_id);
                     status_char_update(m_last_stream_sequence);
+                    printf("Buffer stats: drops=%lu high_water=%u\r\n",
+                           (unsigned long)m_frame_drops,
+                           (unsigned)m_frame_buffer_high_watermark);
                     printf("Streaming stopped by host (frames=%lu)\r\n", (unsigned long)m_last_stream_sequence);
                 }
             }
@@ -635,6 +648,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             m_pending_sequence = 0;
             m_frame_buffer_head = 0;
             m_frame_buffer_count = 0;
+            m_frame_buffer_high_watermark = 0;
             m_frame_drops = 0;
             status_char_update(m_last_stream_sequence);
 
@@ -680,6 +694,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             m_pending_sequence = 0;
             m_frame_buffer_head = 0;
             m_frame_buffer_count = 0;
+            m_frame_buffer_high_watermark = 0;
             status_char_update(m_last_stream_sequence);
             app_timer_stop(m_stream_timer_id);
             advertising_start();

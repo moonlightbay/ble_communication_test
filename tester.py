@@ -167,8 +167,8 @@ def run_tests(devices: Sequence[DeviceConfig]) -> List[DeviceTestResult]:
 def main() -> None:
     devices = [
         DeviceConfig(name="bio-eeg", address="EE:EE:EE:EE:EE:01", duration_s=10.0),   #脑电
-        # DeviceConfig(name="bio-emg", address="EE:EE:EE:EE:EE:02", duration_s=10.0),   #肌电
-        # DeviceConfig(name="bio-scs", address="EE:EE:EE:EE:EE:03", duration_s=10.0),   #脊髓信号
+        DeviceConfig(name="bio-emg", address="EE:EE:EE:EE:EE:02", duration_s=10.0),   #肌电
+        DeviceConfig(name="bio-scs", address="EE:EE:EE:EE:EE:03", duration_s=10.0),   #脊髓信号
         # 如需测试更多设备，请在此追加 DeviceConfig。
     ]
 
@@ -177,3 +177,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

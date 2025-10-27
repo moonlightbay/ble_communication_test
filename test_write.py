@@ -18,6 +18,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
+from queue import SimpleQueue
 from time import sleep
 from typing import Iterable, List, Optional, Sequence
 
@@ -101,6 +102,8 @@ class EegReceiverSession:
         self._completed_event = threading.Event()
         self._first_frame_event = threading.Event()
         self._lock = threading.Lock()
+        self._payload_queue: SimpleQueue[Optional[bytes]] = SimpleQueue()
+        self._worker_done = threading.Event()
         self._time_start_ns = 0
 
         self._total_received = 0
@@ -112,9 +115,15 @@ class EegReceiverSession:
         self._connected = False
         self.result: EegResult | None = None
         self.error: BaseException | None = None
+        self._worker_thread = threading.Thread(
+            target=self._process_notifications,
+            name=f"EEGWorker-{config.name}",
+            daemon=True,
+        )
         self._thread = threading.Thread(target=self._run, name=f"EEGSession-{config.name}", daemon=True)
 
     def start(self) -> None:
+        self._worker_thread.start()
         self._thread.start()
 
     def allow_connect(self) -> None:
@@ -133,18 +142,11 @@ class EegReceiverSession:
     def join(self) -> None:
         self._completed_event.wait()
         self._thread.join()
+        self._worker_thread.join()
 
     # 回调仅记录帧序号，用于丢帧统计
     def _notify_callback(self, address: str, char_uuid: str, data: bytes) -> None:
-        frames = decode_stream_channels(data, EEG_CHANNELS)
-        with self._lock:
-            for frame in frames:
-                self._total_received += 1
-                expected = self._last_sequence + 1
-                if frame.sequence > expected:
-                    self._lost_frames.extend(range(expected, frame.sequence))
-                self._last_sequence = frame.sequence
-        self._first_frame_event.set()
+        self._payload_queue.put(data)
 
     def _wait_for_first_frame(self, timeout_s: float = 5.0) -> None:
         if not self._first_frame_event.wait(timeout=timeout_s):
@@ -198,7 +200,8 @@ class EegReceiverSession:
                 lost_frames=lost_copy,
             )
         except BaseException as exc:
-            self.error = exc
+            if self.error is None:
+                self.error = exc
             print(_prefixed(self.config.name, f"Test failed: {exc}"))
         finally:
             try:
@@ -209,7 +212,30 @@ class EegReceiverSession:
             if self._connected:
                 disconnect(address)
             print(_prefixed(self.config.name, "Disconnected from device."))
+            self._payload_queue.put(None)
+            self._worker_done.wait()
             self._completed_event.set()
+
+    def _process_notifications(self) -> None:
+        try:
+            while True:
+                payload = self._payload_queue.get()
+                if payload is None:
+                    break
+                frames = decode_stream_channels(payload, EEG_CHANNELS)
+                with self._lock:
+                    for frame in frames:
+                        self._total_received += 1
+                        expected = self._last_sequence + 1
+                        if frame.sequence > expected:
+                            self._lost_frames.extend(range(expected, frame.sequence))
+                        self._last_sequence = frame.sequence
+                if not self._first_frame_event.is_set() and frames:
+                    self._first_frame_event.set()
+        except BaseException as exc:
+            self.error = exc
+        finally:
+            self._worker_done.set()
 
 
 class WriterSession:
@@ -383,7 +409,7 @@ def run_write_test(duration_s: float = 10.0) -> tuple[EegResult | None, List[Wri
 
 
 def main() -> None:
-    duration_s = 10.0
+    duration_s = 60.0
     eeg_result, writer_results = run_write_test(duration_s=duration_s)
 
     if eeg_result is not None:
@@ -400,7 +426,9 @@ def main() -> None:
                 f"writes_ok/attempted={wr.writes_ok}/{wr.writes_attempted}, read_counter={wr.read_counter}, last_error={wr.last_error}",
             )
         )
-
+    # print lost frames
+    if eeg_result is not None and eeg_result.lost_frames:
+        print(_prefixed(eeg_result.name, f"Lost frames: {eeg_result.lost_frames}"))
 
 if __name__ == "__main__":
     main()

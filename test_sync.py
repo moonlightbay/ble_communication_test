@@ -31,7 +31,7 @@ START_TIMEOUT_S = 5.0
 CONNECT_STAGGER_S = 0.6  # 启动节流：相邻设备连接/订阅之间的错峰时延（秒）
 
 # EEG 通道数选择（16 或 32）
-EEG_CHANNELS = 16
+EEG_CHANNELS = 32
 
 
 def _prefixed(name: str, message: str) -> str:
@@ -289,8 +289,8 @@ def run_sync_test(devices: Sequence[DeviceConfig]) -> List[DeviceTestResult]:
 
 def main() -> None:
     devices = [
-        # DeviceConfig(name="bio-eeg", address="EE:EE:EE:EE:EE:01", duration_s=10.0),
-        DeviceConfig(name="bio-emg", address="EE:EE:EE:EE:EE:02", duration_s=10.0),
+        DeviceConfig(name="bio-eeg", address="EE:EE:EE:EE:EE:01", duration_s=10.0),
+        # DeviceConfig(name="bio-emg", address="EE:EE:EE:EE:EE:02", duration_s=10.0),
         # DeviceConfig(name="bio-scs", address="EE:EE:EE:EE:EE:03", duration_s=10.0)
     ]
 
